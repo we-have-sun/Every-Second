@@ -4,14 +4,16 @@ import Combine
 struct TimerView: View {
     @State private var isTaskRunning = [Bool](repeating: false, count: 12)
     @State private var taskElapsedTimes = [TimeInterval](repeating: 0, count: 12)
-    @State private var taskNames = ["Sleep", "Beats", "Family", "Friends", "Sport", "We Have Sun", "Luarikot", "Tokinoki", "You", "Human Maintenence", "Transport", "Nothing"]
+    @State private var taskNames = ["Sleep", "Beats", "Family", "Friends", "Sport", "We Have Sun", "Luarikot", "Tokinoki", "You", "Human Maintenance", "Transport", "Nothing"]
     @State private var otherElapsedTime: TimeInterval = 0
     @State private var weekTimer = Timer.publish(every: 0.001, on: .main, in: .common)
     @State private var weekCancellable: Cancellable?
     @State private var timeSinceStartOfWeek: TimeInterval = 0
     
-    private let buttonColors: [Color] = [.blue, .red, .green, .orange, .purple, .pink,
-        .yellow, .gray, .teal, .indigo, .mint, .cyan]
+    private let buttonColors: [Color] = [
+        .blue, .red, .green, .orange, .purple, .pink,
+        .yellow, .gray, .teal, .indigo, .mint, .cyan
+    ]
 
     var body: some View {
         ScrollView {
@@ -26,26 +28,29 @@ struct TimerView: View {
                         saveState()
                     }
 
+                // Display currently running task at the top
+                if let runningTaskIndex = isTaskRunning.firstIndex(of: true) {
+                    TaskView(
+                        index: runningTaskIndex,
+                        taskName: taskNames[runningTaskIndex],
+                        elapsedTime: taskElapsedTimes[runningTaskIndex],
+                        buttonColor: buttonColors[runningTaskIndex % buttonColors.count],
+                        isRunning: true,
+                        startTask: startTask(index:)
+                    )
+                }
+
+                // Display all other tasks
                 ForEach(0..<12) { index in
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text(taskNames[index])
-                            .font(.title2)
-                            .frame(width: 150, alignment: .leading)
-                        
-                        HStack {
-                            Text(timeString(from: taskElapsedTimes[index]))
-                                .font(.system(size: 20, weight: .medium, design: .monospaced))
-                                .frame(minWidth: 100, alignment: .leading)
-                            Spacer()
-                            Button(action: { startTask(index: index) }) {
-                                Text("Start")
-                                    .padding()
-                                    .background(buttonColors[index % buttonColors.count])
-                                    .foregroundColor(.white)
-                                    .cornerRadius(10)
-                            }
-                            .disabled(isTaskRunning[index])
-                        }
+                    if !isTaskRunning[index] {
+                        TaskView(
+                            index: index,
+                            taskName: taskNames[index],
+                            elapsedTime: taskElapsedTimes[index],
+                            buttonColor: buttonColors[index % buttonColors.count],
+                            isRunning: false,
+                            startTask: startTask(index:)
+                        )
                     }
                 }
 
@@ -66,7 +71,7 @@ struct TimerView: View {
                                 .foregroundColor(.white)
                                 .cornerRadius(10)
                         }
-                        .disabled(!isTaskRunning.contains(true))
+                        .disabled(isTaskRunning.contains(true))
                     }
                 }
             }
@@ -124,7 +129,7 @@ struct TimerView: View {
 
         isTaskRunning = defaults.array(forKey: "isTaskRunning") as? [Bool] ?? [Bool](repeating: false, count: 12)
         taskElapsedTimes = defaults.array(forKey: "taskElapsedTimes") as? [TimeInterval] ?? [TimeInterval](repeating: 0, count: 12)
-        taskNames = defaults.stringArray(forKey: "taskNames") ?? ["Sleep", "Beats", "Family", "Friends", "Sport", "We Have Sun", "Luarikot", "Tokinoki", "You", "Human Maintenence", "Transport", "Nothing"]
+        taskNames = defaults.stringArray(forKey: "taskNames") ?? ["Sleep", "Beats", "Family", "Friends", "Sport", "We Have Sun", "Luarikot", "Tokinoki", "You", "Human Maintenance", "Transport", "Nothing"]
         otherElapsedTime = defaults.double(forKey: "otherElapsedTime")
 
         if let index = isTaskRunning.firstIndex(of: true) {
@@ -148,6 +153,47 @@ struct TimerView: View {
         let now = Date()
         let startOfWeek = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now))!
         return now.timeIntervalSince(startOfWeek)
+    }
+}
+
+struct TaskView: View {
+    let index: Int
+    let taskName: String
+    let elapsedTime: TimeInterval
+    let buttonColor: Color
+    let isRunning: Bool
+    let startTask: (Int) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(taskName)
+                .font(.title2)
+                .frame(width: 150, alignment: .leading)
+
+            HStack {
+                Text(timeString(from: elapsedTime))
+                    .font(.system(size: 20, weight: .medium, design: .monospaced))
+                    .frame(minWidth: 100, alignment: .leading)
+                Spacer()
+                Button(action: { startTask(index) }) {
+                    Text("Start")
+                        .padding()
+                        .background(buttonColor)
+                        .foregroundColor(.white)
+                        .cornerRadius(10)
+                }
+                .disabled(isRunning)
+            }
+        }
+    }
+
+    private func timeString(from interval: TimeInterval) -> String {
+        let hours = Int(interval) / 3600
+        let minutes = Int(interval) / 60 % 60
+        let seconds = Int(interval) % 60
+        let milliseconds = Int((interval - floor(interval)) * 1000)
+
+        return String(format: "%02i:%02i:%02i:%03i", hours, minutes, seconds, milliseconds)
     }
 }
 
