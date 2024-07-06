@@ -9,6 +9,8 @@ struct TimerView: View {
     @State private var weekTimer = Timer.publish(every: 0.001, on: .main, in: .common)
     @State private var weekCancellable: Cancellable?
     @State private var timeSinceStartOfWeek: TimeInterval = 0
+    @State private var timeSinceStartOfYear: TimeInterval = 0
+    @State private var currentWeekNumber: Int = 0
     
     private let buttonColors: [Color] = [
         .blue, .red, .green, .orange, .purple, .pink,
@@ -18,15 +20,29 @@ struct TimerView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
+                // Padding at the top
+                Spacer().frame(height: 20)
+                
+                // Display time since start of the week and year at the top
                 Text("Time since start of the week:")
-                    .font(.headline)
+                    .font(.system(size: 24, weight: .bold))
                 Text(timeString(from: timeSinceStartOfWeek))
                     .font(.system(size: 20, weight: .medium, design: .monospaced))
+
+                Text("Time since start of the year:")
+                    .font(.system(size: 24, weight: .bold))
+                Text(timeStringWithDays(from: timeSinceStartOfYear))
+                    .font(.system(size: 20, weight: .medium, design: .monospaced))
                     .onReceive(weekTimer) { _ in
+                        timeSinceStartOfYear = calculateTimeSinceStartOfYear()
                         timeSinceStartOfWeek = calculateTimeSinceStartOfWeek()
                         updateElapsedTimes()
+                        handleWeekChange()
                         saveState()
                     }
+                
+                // Add space between the time section and the first task
+                Spacer().frame(height: 20)
 
                 // Display currently running task at the top
                 if let runningTaskIndex = isTaskRunning.firstIndex(of: true) {
@@ -113,12 +129,39 @@ struct TimerView: View {
         }
     }
 
+    private func handleWeekChange() {
+        let calendar = Calendar.current
+        let now = Date()
+        let weekNumber = calendar.component(.weekOfYear, from: now)
+        
+        if weekNumber != currentWeekNumber {
+            // Save the overflow time from the previous week
+            let overflowTime = timeSinceStartOfWeek
+            resetData()
+            
+            // Add the overflow time to the current running task
+            if let runningTaskIndex = isTaskRunning.firstIndex(of: true) {
+                taskElapsedTimes[runningTaskIndex] += overflowTime
+            }
+            
+            // Update the current week number
+            currentWeekNumber = weekNumber
+        }
+    }
+
+    private func resetData() {
+        isTaskRunning = [Bool](repeating: false, count: 12)
+        taskElapsedTimes = [TimeInterval](repeating: 0, count: 12)
+        otherElapsedTime = 0
+    }
+
     private func saveState() {
         let defaults = UserDefaults.standard
         defaults.set(isTaskRunning, forKey: "isTaskRunning")
         defaults.set(taskElapsedTimes, forKey: "taskElapsedTimes")
         defaults.set(taskNames, forKey: "taskNames")
         defaults.set(otherElapsedTime, forKey: "otherElapsedTime")
+        defaults.set(currentWeekNumber, forKey: "currentWeekNumber")
         defaults.set(Date().timeIntervalSinceReferenceDate, forKey: "lastSavedTime")
     }
 
@@ -131,6 +174,7 @@ struct TimerView: View {
         taskElapsedTimes = defaults.array(forKey: "taskElapsedTimes") as? [TimeInterval] ?? [TimeInterval](repeating: 0, count: 12)
         taskNames = defaults.stringArray(forKey: "taskNames") ?? ["Sleep", "Beats", "Family", "Friends", "Sport", "We Have Sun", "Luarikot", "Tokinoki", "You", "Human Maintenance", "Transport", "Nothing"]
         otherElapsedTime = defaults.double(forKey: "otherElapsedTime")
+        currentWeekNumber = defaults.integer(forKey: "currentWeekNumber")
 
         if let index = isTaskRunning.firstIndex(of: true) {
             taskElapsedTimes[index] += timeDifference
@@ -147,12 +191,29 @@ struct TimerView: View {
 
         return String(format: "%02i:%02i:%02i:%03i", hours, minutes, seconds, milliseconds)
     }
+    
+    private func timeStringWithDays(from interval: TimeInterval) -> String {
+        let days = Int(interval) / (3600 * 24)
+        let hours = (Int(interval) % (3600 * 24)) / 3600
+        let minutes = (Int(interval) / 60) % 60
+        let seconds = Int(interval) % 60
+        let milliseconds = Int((interval - floor(interval)) * 1000)
+
+        return String(format: "%02i days %02i:%02i:%02i:%03i", days, hours, minutes, seconds, milliseconds)
+    }
 
     private func calculateTimeSinceStartOfWeek() -> TimeInterval {
         let calendar = Calendar.current
         let now = Date()
         let startOfWeek = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now))!
         return now.timeIntervalSince(startOfWeek)
+    }
+
+    private func calculateTimeSinceStartOfYear() -> TimeInterval {
+        let calendar = Calendar.current
+        let now = Date()
+        let startOfYear = calendar.date(from: calendar.dateComponents([.year], from: now))!
+        return now.timeIntervalSince(startOfYear)
     }
 }
 
