@@ -10,102 +10,131 @@ struct TimerView: View {
     @State private var weekCancellable: Cancellable?  // Cancellable for the timer
     @State private var timeSinceStartOfWeek: TimeInterval = 0  // Time since the start of the week
     @State private var timeSinceStartOfYear: TimeInterval = 0  // Time since the start of the year
+    @State private var timeSinceBirth: TimeInterval = 0  // Time since birth date
     @State private var currentWeekNumber: Int = 0  // Current week number
+    @State private var showPreviousWeeks = false  // State to show the PreviousWeeksView
     
     // Array of colors for the task buttons
     private let buttonColors: [Color] = [
         .blue, .red, .green, .orange, .purple, .pink,
         .yellow, .gray, .teal, .indigo, .mint, .cyan
     ]
-
+    
+    // Hardcoded birth date
+    private let birthDateString = "1992-05-04"
+    
     var body: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                // Padding at the top
-                Spacer().frame(height: 20)
-                
-                // Display time since start of the week
-                Text("Time since start of the week:")
-                    .font(.system(size: 24, weight: .bold))
-                Text(timeString(from: timeSinceStartOfWeek))
-                    .font(.system(size: 20, weight: .medium, design: .monospaced))
+        NavigationView {
+            ScrollView {
+                VStack(spacing: 30) { // Increased spacing between sections
+                    // Padding at the top
+                    Spacer().frame(height: 20)
+                    
+                    // Display time since start of the week
+                    VStack(spacing: 10) {
+                        Text("Time since start of the week:")
+                            .font(.system(size: 24, weight: .bold))
+                        Text(timeString(from: timeSinceStartOfWeek))
+                            .font(.system(size: 20, weight: .medium, design: .monospaced))
+                    }
 
-                // Display time since start of the year
-                Text("Time since start of the year:")
-                    .font(.system(size: 24, weight: .bold))
-                Text(timeStringWithDays(from: timeSinceStartOfYear))
-                    .font(.system(size: 20, weight: .medium, design: .monospaced))
+                    // Display time since start of the year
+                    VStack(spacing: 10) {
+                        Text("Time since start of the year:")
+                            .font(.system(size: 24, weight: .bold))
+                        Text(timeStringWithDays(from: timeSinceStartOfYear))
+                            .font(.system(size: 20, weight: .medium, design: .monospaced))
+                    }
+
+                    // Display time since birth date
+                    VStack(spacing: 10) {
+                        Text("Time since birth date:")
+                            .font(.system(size: 24, weight: .bold))
+                        Text(timeStringWithMonthsDays(from: timeSinceBirth))
+                            .font(.system(size: 20, weight: .medium, design: .monospaced))
+                    }
+                    
                     .onReceive(weekTimer) { _ in
                         // Update times and handle week change
                         timeSinceStartOfYear = calculateTimeSinceStartOfYear()
                         timeSinceStartOfWeek = calculateTimeSinceStartOfWeek()
+                        timeSinceBirth = calculateTimeSinceBirth()
                         updateElapsedTimes()
                         handleWeekChange()
                         saveState()
                     }
-                
-                // Add space between the time section and the first task
-                Spacer().frame(height: 20)
+                    
+                    // Add space between the time section and the first task
+                    Spacer().frame(height: 20)
 
-                // Display currently running task at the top
-                if let runningTaskIndex = isTaskRunning.firstIndex(of: true) {
-                    TaskView(
-                        index: runningTaskIndex,
-                        taskName: taskNames[runningTaskIndex],
-                        elapsedTime: taskElapsedTimes[runningTaskIndex],
-                        buttonColor: buttonColors[runningTaskIndex % buttonColors.count],
-                        isRunning: true,
-                        startTask: startTask(index:)
-                    )
-                }
-
-                // Display all other tasks
-                ForEach(0..<12) { index in
-                    if !isTaskRunning[index] {
+                    // Display currently running task at the top
+                    if let runningTaskIndex = isTaskRunning.firstIndex(of: true) {
                         TaskView(
-                            index: index,
-                            taskName: taskNames[index],
-                            elapsedTime: taskElapsedTimes[index],
-                            buttonColor: buttonColors[index % buttonColors.count],
-                            isRunning: false,
+                            index: runningTaskIndex,
+                            taskName: taskNames[runningTaskIndex],
+                            elapsedTime: taskElapsedTimes[runningTaskIndex],
+                            buttonColor: buttonColors[runningTaskIndex % buttonColors.count],
+                            isRunning: true,
                             startTask: startTask(index:)
                         )
                     }
-                }
 
-                VStack(alignment: .leading, spacing: 10) {
-                    // Display "Other" task
-                    Text("Other")
-                        .font(.title2)
-                        .frame(width: 150, alignment: .leading)
-
-                    HStack {
-                        Text(timeString(from: otherElapsedTime))
-                            .font(.system(size: 20, weight: .medium, design: .monospaced))
-                            .frame(minWidth: 100, alignment: .leading)
-                        Spacer()
-                        Button(action: startOther) {
-                            Text("Start")
-                                .padding()
-                                .background(Color.black)
-                                .foregroundColor(.white)
-                                .cornerRadius(10)
+                    // Display all other tasks
+                    ForEach(0..<12) { index in
+                        if !isTaskRunning[index] {
+                            TaskView(
+                                index: index,
+                                taskName: taskNames[index],
+                                elapsedTime: taskElapsedTimes[index],
+                                buttonColor: buttonColors[index % buttonColors.count],
+                                isRunning: false,
+                                startTask: startTask(index:)
+                            )
                         }
-                        .disabled(isTaskRunning.contains(true))  // Disable if any task is running
+                    }
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        // Display "Other" task
+                        Text("Other")
+                            .font(.title2)
+                            .frame(width: 150, alignment: .leading)
+
+                        HStack {
+                            Text(timeString(from: otherElapsedTime))
+                                .font(.system(size: 20, weight: .medium, design: .monospaced))
+                                .frame(minWidth: 100, alignment: .leading)
+                            Spacer()
+                            Button(action: startOther) {
+                                Text("Start")
+                                    .padding()
+                                    .background(Color.black)
+                                    .foregroundColor(.white)
+                                    .cornerRadius(10)
+                            }
+                            .disabled(isTaskRunning.contains(true))  // Disable if any task is running
+                        }
                     }
                 }
+                .padding()
             }
-            .padding()
-        }
-        .scrollIndicators(.hidden)
-        .onAppear {
-            // Start the timer
-            weekTimer = Timer.publish(every: 0.001, on: .main, in: .common)
-            weekCancellable = weekTimer.connect()
-            loadState()  // Load saved state
-        }
-        .onDisappear {
-            weekCancellable?.cancel()  // Cancel the timer
+            .scrollIndicators(.hidden)
+            .navigationBarItems(trailing: Button(action: {
+                showPreviousWeeks.toggle()
+            }) {
+                Text("Previous Weeks")
+            })
+            .sheet(isPresented: $showPreviousWeeks) {
+                PreviousWeeksView()
+            }
+            .onAppear {
+                // Start the timer
+                weekTimer = Timer.publish(every: 0.001, on: .main, in: .common)
+                weekCancellable = weekTimer.connect()
+                loadState()  // Load saved state
+            }
+            .onDisappear {
+                weekCancellable?.cancel()  // Cancel the timer
+            }
         }
     }
 
@@ -144,10 +173,12 @@ struct TimerView: View {
         let calendar = Calendar.current
         let now = Date()
         let weekNumber = calendar.component(.weekOfYear, from: now)
+        let yearNumber = calendar.component(.year, from: now)
         
         if weekNumber != currentWeekNumber {
             // Save the overflow time from the previous week
             let overflowTime = timeSinceStartOfWeek
+            savePreviousWeekData(weekNumber: currentWeekNumber, year: yearNumber - 1)
             resetData()
             
             // Add the overflow time to the current running task
@@ -165,6 +196,25 @@ struct TimerView: View {
         isTaskRunning = [Bool](repeating: false, count: 12)
         taskElapsedTimes = [TimeInterval](repeating: 0, count: 12)
         otherElapsedTime = 0
+    }
+
+    // Function to save the previous week's data
+    private func savePreviousWeekData(weekNumber: Int, year: Int) {
+        let defaults = UserDefaults.standard
+        var previousWeeksData = defaults.dictionary(forKey: "previousWeeksData") as? [String: [String: TimeInterval]] ?? [:]
+
+        // Create a unique key for the week and year
+        let weekKey = "\(year)-\(weekNumber)"
+        
+        // Save task elapsed times for the week
+        var weekData: [String: TimeInterval] = [:]
+        for (index, elapsedTime) in taskElapsedTimes.enumerated() {
+            weekData[taskNames[index]] = elapsedTime
+        }
+        weekData["Other"] = otherElapsedTime
+        
+        previousWeeksData[weekKey] = weekData
+        defaults.set(previousWeeksData, forKey: "previousWeeksData")
     }
 
     // Function to save the current state
@@ -219,6 +269,23 @@ struct TimerView: View {
 
         return String(format: "%02i days %02i:%02i:%02i:%03i", days, hours, minutes, seconds, milliseconds)
     }
+    
+    // Function to convert time interval to a formatted string with months and days
+    private func timeStringWithMonthsDays(from interval: TimeInterval) -> String {
+        let calendar = Calendar.current
+        let now = Date()
+        let birthDate = getDate(from: birthDateString)
+        let components = calendar.dateComponents([.month, .day, .hour, .minute, .second, .nanosecond], from: birthDate, to: now)
+        
+        let months = components.month ?? 0
+        let days = components.day ?? 0
+        let hours = components.hour ?? 0
+        let minutes = components.minute ?? 0
+        let seconds = components.second ?? 0
+        let milliseconds = (components.nanosecond ?? 0) / 1_000_000
+
+        return String(format: "%02im %02id %02i:%02i:%02i:%03i", months, days, hours, minutes, seconds, milliseconds)
+    }
 
     // Function to calculate time since the start of the week
     private func calculateTimeSinceStartOfWeek() -> TimeInterval {
@@ -235,50 +302,19 @@ struct TimerView: View {
         let startOfYear = calendar.date(from: calendar.dateComponents([.year], from: now))!
         return now.timeIntervalSince(startOfYear)
     }
-}
-
-struct TaskView: View {
-    let index: Int
-    let taskName: String
-    let elapsedTime: TimeInterval
-    let buttonColor: Color
-    let isRunning: Bool
-    let startTask: (Int) -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            // Display the task name
-            Text(taskName)
-                .font(.title2)
-                .frame(width: 150, alignment: .leading)
-
-            HStack {
-                // Display the elapsed time for the task
-                Text(timeString(from: elapsedTime))
-                    .font(.system(size: 20, weight: .medium, design: .monospaced))
-                    .frame(minWidth: 100, alignment: .leading)
-                Spacer()
-                // Button to start the task
-                Button(action: { startTask(index) }) {
-                    Text("Start")
-                        .padding()
-                        .background(buttonColor)
-                        .foregroundColor(.white)
-                        .cornerRadius(10)
-                }
-                .disabled(isRunning)  // Disable button if the task is already running
-            }
-        }
+    
+    // Function to calculate time since birth date
+    private func calculateTimeSinceBirth() -> TimeInterval {
+        let now = Date()
+        let birthDate = getDate(from: birthDateString)
+        return now.timeIntervalSince(birthDate)
     }
-
-    // Function to convert time interval to a formatted string
-    private func timeString(from interval: TimeInterval) -> String {
-        let hours = Int(interval) / 3600
-        let minutes = Int(interval) / 60 % 60
-        let seconds = Int(interval) % 60
-        let milliseconds = Int((interval - floor(interval)) * 1000)
-
-        return String(format: "%02i:%02i:%02i:%03i", hours, minutes, seconds, milliseconds)
+    
+    // Function to get date from string
+    private func getDate(from dateString: String) -> Date {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        return dateFormatter.date(from: dateString) ?? Date()
     }
 }
 
