@@ -2,10 +2,9 @@ import SwiftUI
 import Combine
 
 struct TimerView: View {
-    @State private var isTaskRunning = [Bool](repeating: false, count: 12)  // Array to track if each task is running
-    @State private var taskElapsedTimes = [TimeInterval](repeating: 0, count: 12)  // Array to track elapsed time for each task
-    @State private var taskNames = ["Sleep", "Beats", "Family", "Friends", "Sport", "We Have Sun", "Luarikot", "Tokinoki", "You", "Human Maintenance", "Transport", "Nothing"]  // Task names
-    @State private var otherElapsedTime: TimeInterval = 0  // Elapsed time for "Other" category
+    @State private var isTaskRunning = [Bool](repeating: false, count: 13)  // Array to track if each task is running (including "Other")
+    @State private var taskElapsedTimes = [TimeInterval](repeating: 0, count: 13)  // Array to track elapsed time for each task (including "Other")
+    @State private var taskNames = ["Sleep", "Beats", "Family", "Friends", "Sport", "We Have Sun", "Luarikot", "Tokinoki", "You", "Human Maintenance", "Transport", "Nothing", "Other"]  // Task names (including "Other")
     @State private var weekTimer = Timer.publish(every: 0.001, on: .main, in: .common)  // Timer to update elapsed times
     @State private var weekCancellable: Cancellable?  // Cancellable for the timer
     @State private var timeSinceStartOfWeek: TimeInterval = 0  // Time since the start of the week
@@ -17,7 +16,8 @@ struct TimerView: View {
     // Array of colors for the task buttons
     private let buttonColors: [Color] = [
         .blue, .red, .green, .orange, .purple, .pink,
-        .yellow, .gray, .teal, .indigo, .mint, .cyan
+        .yellow, .gray, .teal, .indigo, .mint, .cyan,
+        .black
     ]
     
     // Hardcoded birth date
@@ -67,52 +67,19 @@ struct TimerView: View {
                     // Add space between the time section and the first task
                     Spacer().frame(height: 20)
 
-                    // Display currently running task at the top
-                    if let runningTaskIndex = isTaskRunning.firstIndex(of: true) {
+                    // Sort the tasks by their elapsed times in descending order
+                    let sortedTasks = taskNames.enumerated().sorted { taskElapsedTimes[$0.offset] > taskElapsedTimes[$1.offset] }
+                    
+                    // Display tasks in sorted order
+                    ForEach(sortedTasks, id: \.offset) { index, taskName in
                         TaskView(
-                            index: runningTaskIndex,
-                            taskName: taskNames[runningTaskIndex],
-                            elapsedTime: taskElapsedTimes[runningTaskIndex],
-                            buttonColor: buttonColors[runningTaskIndex % buttonColors.count],
-                            isRunning: true,
+                            index: index,
+                            taskName: taskName,
+                            elapsedTime: taskElapsedTimes[index],
+                            buttonColor: buttonColors[index % buttonColors.count],
+                            isRunning: isTaskRunning[index],
                             startTask: startTask(index:)
                         )
-                    }
-
-                    // Display all other tasks
-                    ForEach(0..<12) { index in
-                        if !isTaskRunning[index] {
-                            TaskView(
-                                index: index,
-                                taskName: taskNames[index],
-                                elapsedTime: taskElapsedTimes[index],
-                                buttonColor: buttonColors[index % buttonColors.count],
-                                isRunning: false,
-                                startTask: startTask(index:)
-                            )
-                        }
-                    }
-
-                    VStack(alignment: .leading, spacing: 10) {
-                        // Display "Other" task
-                        Text("Other")
-                            .font(.title2)
-                            .frame(width: 150, alignment: .leading)
-
-                        HStack {
-                            Text(timeString(from: otherElapsedTime))
-                                .font(.system(size: 20, weight: .medium, design: .monospaced))
-                                .frame(minWidth: 100, alignment: .leading)
-                            Spacer()
-                            Button(action: startOther) {
-                                Text("Start")
-                                    .padding()
-                                    .background(Color.black)
-                                    .foregroundColor(.white)
-                                    .cornerRadius(10)
-                            }
-                            .disabled(isTaskRunning.contains(true))  // Disable if any task is running
-                        }
                     }
                 }
                 .padding()
@@ -147,24 +114,16 @@ struct TimerView: View {
         saveState()
     }
 
-    // Function to start the "Other" task
-    private func startOther() {
-        for i in 0..<isTaskRunning.count {
-            isTaskRunning[i] = false
-        }
-        saveState()
-    }
-
     // Function to update elapsed times for tasks
     private func updateElapsedTimes() {
         let runningTaskIndex = isTaskRunning.firstIndex(of: true)
 
         if let index = runningTaskIndex {
             // Update the elapsed time for the running task
-            taskElapsedTimes[index] = timeSinceStartOfWeek - (otherElapsedTime + taskElapsedTimes.filter { $0 != taskElapsedTimes[index] }.reduce(0, +))
+            taskElapsedTimes[index] = timeSinceStartOfWeek - taskElapsedTimes.enumerated().filter { $0.offset != index }.map { $0.element }.reduce(0, +)
         } else {
             // Update the elapsed time for "Other"
-            otherElapsedTime = timeSinceStartOfWeek - taskElapsedTimes.reduce(0, +)
+            taskElapsedTimes[12] = timeSinceStartOfWeek - taskElapsedTimes.enumerated().filter { $0.offset != 12 }.map { $0.element }.reduce(0, +)
         }
     }
 
@@ -193,9 +152,8 @@ struct TimerView: View {
 
     // Function to reset data at the start of a new week
     private func resetData() {
-        isTaskRunning = [Bool](repeating: false, count: 12)
-        taskElapsedTimes = [TimeInterval](repeating: 0, count: 12)
-        otherElapsedTime = 0
+        isTaskRunning = [Bool](repeating: false, count: 13)
+        taskElapsedTimes = [TimeInterval](repeating: 0, count: 13)
     }
 
     // Function to save the previous week's data
@@ -211,7 +169,6 @@ struct TimerView: View {
         for (index, elapsedTime) in taskElapsedTimes.enumerated() {
             weekData[taskNames[index]] = elapsedTime
         }
-        weekData["Other"] = otherElapsedTime
         
         previousWeeksData[weekKey] = weekData
         defaults.set(previousWeeksData, forKey: "previousWeeksData")
@@ -223,7 +180,6 @@ struct TimerView: View {
         defaults.set(isTaskRunning, forKey: "isTaskRunning")
         defaults.set(taskElapsedTimes, forKey: "taskElapsedTimes")
         defaults.set(taskNames, forKey: "taskNames")
-        defaults.set(otherElapsedTime, forKey: "otherElapsedTime")
         defaults.set(currentWeekNumber, forKey: "currentWeekNumber")
         defaults.set(Date().timeIntervalSinceReferenceDate, forKey: "lastSavedTime")
     }
@@ -234,10 +190,9 @@ struct TimerView: View {
         let lastSavedTime = defaults.double(forKey: "lastSavedTime")
         let timeDifference = Date().timeIntervalSinceReferenceDate - lastSavedTime
 
-        isTaskRunning = defaults.array(forKey: "isTaskRunning") as? [Bool] ?? [Bool](repeating: false, count: 12)
-        taskElapsedTimes = defaults.array(forKey: "taskElapsedTimes") as? [TimeInterval] ?? [TimeInterval](repeating: 0, count: 12)
-        taskNames = defaults.stringArray(forKey: "taskNames") ?? ["Sleep", "Beats", "Family", "Friends", "Sport", "We Have Sun", "Luarikot", "Tokinoki", "You", "Human Maintenance", "Transport", "Nothing"]
-        otherElapsedTime = defaults.double(forKey: "otherElapsedTime")
+        isTaskRunning = defaults.array(forKey: "isTaskRunning") as? [Bool] ?? [Bool](repeating: false, count: 13)
+        taskElapsedTimes = defaults.array(forKey: "taskElapsedTimes") as? [TimeInterval] ?? [TimeInterval](repeating: 0, count: 13)
+        taskNames = defaults.stringArray(forKey: "taskNames") ?? ["Sleep", "Beats", "Family", "Friends", "Sport", "We Have Sun", "Luarikot", "Tokinoki", "You", "Human Maintenance", "Transport", "Nothing", "Other"]
         currentWeekNumber = defaults.integer(forKey: "currentWeekNumber")
 
         if let index = isTaskRunning.firstIndex(of: true) {
@@ -245,7 +200,7 @@ struct TimerView: View {
             taskElapsedTimes[index] += timeDifference
         } else {
             // Adjust the elapsed time for "Other"
-            otherElapsedTime += timeDifference
+            taskElapsedTimes[12] += timeDifference
         }
     }
 
